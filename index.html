@@ -2744,12 +2744,7 @@
 
                     const parts = [];
 
-                    // Add clear multi-page directive
-                    parts.push({
-                        text: `CRITICAL MANDATE: You have been provided with EXACTLY ${currentFiles.length} SEPARATE MEDICAL REPORT IMAGES/PAGES. You MUST process and extract findings from EVERY SINGLE IMAGE below without omitting any report page.`
-                    });
-
-                    // Convert uploaded medical report images to Base64 and add to parts array with explicit page tags
+                    // Convert uploaded medical report images to Base64 and add to parts array
                     for (let i = 0; i < currentFiles.length; i++) {
                         try {
                             analysisStatus.textContent = `Processing page ${i + 1} of ${currentFiles.length}...`;
@@ -2759,26 +2754,24 @@
                             if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(rawType)) {
                                 rawType = "image/jpeg";
                             }
-                            parts.push({ text: `=== START OF MEDICAL REPORT PAGE/IMAGE ${i + 1} OF ${currentFiles.length} ===` });
                             parts.push({
                                 inlineData: {
                                     mimeType: rawType,
                                     data: base64Data
                                 }
                             });
-                            parts.push({ text: `=== END OF MEDICAL REPORT PAGE/IMAGE ${i + 1} ===` });
                         } catch (b64Err) {
                             console.error(`Failed to convert image ${i + 1} to base64:`, b64Err);
                         }
                     }
 
                     // Construct prompt with instructions for multi-language patient summaries (English, Marathi, Kannada, Hindi)
-                    let promptText = `You are an expert medical AI clinical diagnostic assistant. I am providing you with medical report images for complete text extraction and diagnostic analysis.
+                    let promptText = `You are an expert medical AI clinical diagnostic assistant. I am providing you with ${currentFiles.length} medical report image(s) for complete text extraction and diagnostic analysis.
 
 IMPORTANT INSTRUCTIONS — READ CAREFULLY BEFORE RESPONDING:
 - Do NOT write introductions, greetings, or preambles.
 - You MUST produce ALL SECTIONS below, in order, using the EXACT tags shown.
-- EXPLICIT MULTI-PAGE MANDATE: Process ALL ${currentFiles.length} uploaded report pages. Extract parameters and findings from EVERY page (Pages 1 through ${currentFiles.length}) into Section 0, Section 1, and Section 2. Do NOT skip or miss any page.
+- CRITICAL MULTI-PAGE MANDATE: You have been provided with ${currentFiles.length} separate medical report pages. You MUST extract, process, and include findings from EVERY SINGLE IMAGE provided (Page 1 through Page ${currentFiles.length}) in Section 0, Section 1, and Section 2. Do NOT skip or omit any page or parameter.
 
 ==========================================================================
 SECTION 0: RAW EXTRACTED TEXT [EXTRACTED_TEXT_START] ... [EXTRACTED_TEXT_END]
@@ -2809,22 +2802,22 @@ Purpose: A FLOWING NARRATIVE — written like a medical story, NOT a list.
 ==========================================================================
 SECTION 3: ENGLISH PATIENT SUMMARY [ENGLISH_SUMMARY_START] ... [ENGLISH_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, ultra-concise 2-paragraph patient summary in simple conversational English (no medical jargon).
+Purpose: A warm, concise 3-paragraph letter-style patient summary in simple conversational English (no medical jargon).
 
 ==========================================================================
 SECTION 4: MARATHI PATIENT SUMMARY [MARATHI_SUMMARY_START] ... [MARATHI_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).
+Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).
 
 ==========================================================================
 SECTION 5: KANNADA PATIENT SUMMARY [KANNADA_SUMMARY_START] ... [KANNADA_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).
+Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).
 
 ==========================================================================
 SECTION 6: HINDI PATIENT SUMMARY [HINDI_SUMMARY_START] ... [HINDI_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).
+Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).
 
 ==========================================================================
 NOW GENERATE ALL SECTIONS BELOW IN ORDER:
@@ -2885,11 +2878,11 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                     // Build the key pool: if user has a custom key, use only that; otherwise rotate through all default keys
                     const keyPool = usingCustomKey ? [apiKey] : DEFAULT_API_KEY_POOL;
 
-                    // Models confirmed working with Gemini API (prioritize official fast flash vision models)
+                    // Models confirmed working with Gemini API
                     const MODELS_TO_TRY = [
                         'gemini-1.5-flash',
-                        'gemini-1.5-flash-8b',
-                        'gemini-2.0-flash-exp',
+                        'gemini-2.0-flash',
+                        'gemini-1.5-pro',
                         'gemini-flash-latest'
                     ];
 
@@ -2917,9 +2910,9 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                                     body: JSON.stringify({
                                         contents: [{ parts: parts }],
                                         generationConfig: {
-                                            temperature: 0.0,
-                                            topP: 0.8,
-                                            maxOutputTokens: 2500
+                                            temperature: 0.1,
+                                            topP: 0.85,
+                                            maxOutputTokens: 8192
                                         }
                                     })
                                 });
