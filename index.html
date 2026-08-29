@@ -2809,22 +2809,22 @@ Purpose: A FLOWING NARRATIVE — written like a medical story, NOT a list.
 ==========================================================================
 SECTION 3: ENGLISH PATIENT SUMMARY [ENGLISH_SUMMARY_START] ... [ENGLISH_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple conversational English (no medical jargon).
+Purpose: A warm, ultra-concise 2-paragraph patient summary in simple conversational English (no medical jargon).
 
 ==========================================================================
 SECTION 4: MARATHI PATIENT SUMMARY [MARATHI_SUMMARY_START] ... [MARATHI_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).
+Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).
 
 ==========================================================================
 SECTION 5: KANNADA PATIENT SUMMARY [KANNADA_SUMMARY_START] ... [KANNADA_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).
+Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).
 
 ==========================================================================
 SECTION 6: HINDI PATIENT SUMMARY [HINDI_SUMMARY_START] ... [HINDI_SUMMARY_END]
 ==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).
+Purpose: A warm, ultra-concise 2-paragraph patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).
 
 ==========================================================================
 NOW GENERATE ALL SECTIONS BELOW IN ORDER:
@@ -2885,12 +2885,11 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                     // Build the key pool: if user has a custom key, use only that; otherwise rotate through all default keys
                     const keyPool = usingCustomKey ? [apiKey] : DEFAULT_API_KEY_POOL;
 
-                    // Models confirmed working with Gemini API (prioritize ultra-fast flash vision models)
+                    // Models confirmed working with Gemini API (prioritize official fast flash vision models)
                     const MODELS_TO_TRY = [
-                        'gemini-2.0-flash',
-                        'gemini-2.5-flash',
                         'gemini-1.5-flash',
-                        'gemini-3.6-flash',
+                        'gemini-1.5-flash-8b',
+                        'gemini-2.0-flash-exp',
                         'gemini-flash-latest'
                     ];
 
@@ -2918,9 +2917,9 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                                     body: JSON.stringify({
                                         contents: [{ parts: parts }],
                                         generationConfig: {
-                                            temperature: 0.1,
-                                            topP: 0.85,
-                                            maxOutputTokens: 8192
+                                            temperature: 0.0,
+                                            topP: 0.8,
+                                            maxOutputTokens: 2500
                                         }
                                     })
                                 });
