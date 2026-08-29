@@ -1877,7 +1877,7 @@
                 });
             });
 
-            async function compressImage(file, maxDimension = 1400, quality = 0.80) {
+            async function compressImage(file, maxDimension = 1200, quality = 0.75) {
                 if (file && file._isCompressed) return file;
                 return new Promise((resolve, reject) => {
                     const img = new Image();
@@ -2734,18 +2734,22 @@
                 if (summaryCardKn) summaryCardKn.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%;"><span class="loader"></span></div>';
                 if (summaryCardHi) summaryCardHi.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%;"><span class="loader"></span></div>';
                 selectStructuredTab();
-                analysisStatus.textContent = `Extracting & analyzing ${currentFiles.length} pages via Gemini 3.6 Vision AI...`;
+                analysisStatus.textContent = `Extracting & analyzing ${currentFiles.length} pages via Gemini Vision AI...`;
                 pulseIndicator.classList.add('analyzing');
 
                 try {
-                    // Step 1: Prepare image inputs directly for Gemini 3.6 Multimodal Vision OCR
                     analyzeBtn.querySelector('.btn-text').textContent = '⚡ Extracting & Analyzing...';
                     analysisStatus.textContent = `Preparing ${currentFiles.length} pages for Gemini Vision AI...`;
                     pulseIndicator.classList.add('analyzing');
 
                     const parts = [];
 
-                    // Convert uploaded medical report images to Base64 and add to parts array
+                    // Add clear multi-page directive
+                    parts.push({
+                        text: `CRITICAL MANDATE: You have been provided with EXACTLY ${currentFiles.length} SEPARATE MEDICAL REPORT IMAGES/PAGES. You MUST process and extract findings from EVERY SINGLE IMAGE below without omitting any report page.`
+                    });
+
+                    // Convert uploaded medical report images to Base64 and add to parts array with explicit page tags
                     for (let i = 0; i < currentFiles.length; i++) {
                         try {
                             analysisStatus.textContent = `Processing page ${i + 1} of ${currentFiles.length}...`;
@@ -2755,12 +2759,14 @@
                             if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(rawType)) {
                                 rawType = "image/jpeg";
                             }
+                            parts.push({ text: `=== START OF MEDICAL REPORT PAGE/IMAGE ${i + 1} OF ${currentFiles.length} ===` });
                             parts.push({
                                 inlineData: {
                                     mimeType: rawType,
                                     data: base64Data
                                 }
                             });
+                            parts.push({ text: `=== END OF MEDICAL REPORT PAGE/IMAGE ${i + 1} ===` });
                         } catch (b64Err) {
                             console.error(`Failed to convert image ${i + 1} to base64:`, b64Err);
                         }
@@ -2772,21 +2778,22 @@
 IMPORTANT INSTRUCTIONS — READ CAREFULLY BEFORE RESPONDING:
 - Do NOT write introductions, greetings, or preambles.
 - You MUST produce ALL SECTIONS below, in order, using the EXACT tags shown.
+- EXPLICIT MULTI-PAGE MANDATE: Process ALL ${currentFiles.length} uploaded report pages. Extract parameters and findings from EVERY page (Pages 1 through ${currentFiles.length}) into Section 0, Section 1, and Section 2. Do NOT skip or miss any page.
 
 ==========================================================================
 SECTION 0: RAW EXTRACTED TEXT [EXTRACTED_TEXT_START] ... [EXTRACTED_TEXT_END]
 ==========================================================================
-Extract all visible text from the medical report images accurately, maintaining line breaks and section headers.
+Extract all visible text from all ${currentFiles.length} medical report images accurately, maintaining line breaks and section headers for each page.
 
 ==========================================================================
 SECTION 1: STRUCTURED CLINICAL ANALYSIS [ANALYSIS_START] ... [ANALYSIS_END]
 ==========================================================================
 Purpose: A precise, comprehensive clinical document for doctors. Use tables and bullet points.
 - Identify patient (name, age, gender, date, hospital).
-- GROUP ALL INVESTIGATIONS INTO 2 DISTINCT CATEGORIES:
+- GROUP ALL INVESTIGATIONS FROM ALL ${currentFiles.length} PAGES INTO 2 DISTINCT CATEGORIES:
   Group A: BLOOD & LABORATORY INVESTIGATIONS (e.g., CBC, Blood Sugar, Lipid Profile, LFT, KFT, HbA1c, Thyroid, Serology, Urine, etc.)
   Group B: IMAGING & OTHER DIAGNOSTIC INVESTIGATIONS (e.g., Echo-Doppler, USG/Ultrasound, CT Scan, MRI, Stress Testing/TMT, Holter, Peripheral Doppler, ECG, X-Ray, etc.)
-- CRITICAL REQUIREMENT: Display BOTH NORMAL AND ABNORMAL findings (do NOT omit normal routine reports).
+- CRITICAL REQUIREMENT: Display BOTH NORMAL AND ABNORMAL findings from ALL uploaded report pages (do NOT omit normal routine reports).
 - Mark status clearly for every parameter/investigation:
   🟢 Normal (for values within normal range or normal imaging findings)
   🔴 High / 🔴 Low / 🔴 Abnormal (for abnormal or borderline values)
@@ -2797,7 +2804,7 @@ SECTION 2: NARRATIVE CLINICAL STORY [STORY_START] ... [STORY_END]
 ==========================================================================
 Purpose: A FLOWING NARRATIVE — written like a medical story, NOT a list.
 - Write continuous prose paragraphs (NO bullet points, NO tables).
-- Tell the story of this patient's health journey.
+- Tell the story of this patient's health journey based on all findings.
 
 ==========================================================================
 SECTION 3: ENGLISH PATIENT SUMMARY [ENGLISH_SUMMARY_START] ... [ENGLISH_SUMMARY_END]
@@ -2878,12 +2885,12 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                     // Build the key pool: if user has a custom key, use only that; otherwise rotate through all default keys
                     const keyPool = usingCustomKey ? [apiKey] : DEFAULT_API_KEY_POOL;
 
-                    // Models confirmed working with Gemini API
+                    // Models confirmed working with Gemini API (prioritize ultra-fast flash vision models)
                     const MODELS_TO_TRY = [
-                        'gemini-3.6-flash',
-                        'gemini-3.5-flash',
-                        'gemini-3.1-flash-lite',
                         'gemini-2.0-flash',
+                        'gemini-2.5-flash',
+                        'gemini-1.5-flash',
+                        'gemini-3.6-flash',
                         'gemini-flash-latest'
                     ];
 
