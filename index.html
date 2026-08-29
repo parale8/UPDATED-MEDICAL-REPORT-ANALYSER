@@ -1877,7 +1877,7 @@
                 });
             });
 
-            async function compressImage(file, maxDimension = 1200, quality = 0.75) {
+            async function compressImage(file, maxDimension = 1000, quality = 0.70) {
                 if (file && file._isCompressed) return file;
                 return new Promise((resolve, reject) => {
                     const img = new Image();
@@ -1909,7 +1909,7 @@
                                 resolve(file);
                                 return;
                             }
-                            const compressedFile = new File([blob], file.name, {
+                            const compressedFile = new File([blob], file.name || "photo.jpg", {
                                 type: "image/jpeg",
                                 lastModified: Date.now()
                             });
@@ -1928,8 +1928,8 @@
                 return new Promise(async (resolve, reject) => {
                     let targetFile = file;
                     try {
-                        if (file && (file.type ? file.type.startsWith('image/') : true) && !file._isCompressed && typeof compressImage === 'function') {
-                            targetFile = await compressImage(file, 1400, 0.80);
+                        if (file && !file._isCompressed && typeof compressImage === 'function') {
+                            targetFile = await compressImage(file, 1000, 0.70);
                         }
                     } catch (e) {
                         console.warn("Fast compress fallback:", e);
@@ -2749,14 +2749,9 @@
                         try {
                             analysisStatus.textContent = `Processing page ${i + 1} of ${currentFiles.length}...`;
                             const base64Data = await fileToBase64(currentFiles[i]);
-                            let rawType = (currentFiles[i].type || "image/jpeg").toLowerCase();
-                            if (rawType === "image/jpg" || rawType === "image/pjpeg") rawType = "image/jpeg";
-                            if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(rawType)) {
-                                rawType = "image/jpeg";
-                            }
                             parts.push({
                                 inlineData: {
-                                    mimeType: rawType,
+                                    mimeType: "image/jpeg",
                                     data: base64Data
                                 }
                             });
@@ -2900,7 +2895,6 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                             try {
                                 const headers = { 'Content-Type': 'application/json' };
                                 let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(currentKey)}`;
-                                headers['x-goog-api-key'] = currentKey;
                                 if (currentKey.startsWith('AQ.') || currentKey.startsWith('ya29.')) {
                                     headers['Authorization'] = `Bearer ${currentKey}`;
                                 }
