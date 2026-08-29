@@ -2875,14 +2875,15 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
                     let success = false;
                     let selectedModel = '';
 
-                    // Build the key pool: if user has a custom key, use only that; otherwise rotate through all default keys
-                    const keyPool = usingCustomKey ? [apiKey] : DEFAULT_API_KEY_POOL;
+                    // Build the key pool: if user has a custom key, try it first, then fall back to default keys seamlessly
+                    const keyPool = usingCustomKey ? [apiKey, ...DEFAULT_API_KEY_POOL] : DEFAULT_API_KEY_POOL;
 
                     // Models confirmed working with Gemini API
                     const MODELS_TO_TRY = [
                         'gemini-3.6-flash',
                         'gemini-3.5-flash',
                         'gemini-3.1-flash-lite',
+                        'gemini-2.5-flash',
                         'gemini-flash-latest'
                     ];
 
