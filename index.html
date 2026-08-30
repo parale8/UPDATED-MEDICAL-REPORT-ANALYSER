@@ -1471,8 +1471,8 @@
                     patientSummaryResult.style.display = 'flex';
                     patientSummaryResult.classList.remove('hidden');
                 }
-                // Always reset to English tab when opening Patient Summary
-                selectLanguage(btnLangEn);
+                // Always reset to current or English tab when opening Patient Summary
+                selectLanguageByCode(currentSelectedLangCode || 'en');
             }
 
             if (tabStructured) tabStructured.addEventListener('click', selectStructuredTab);
@@ -1545,6 +1545,8 @@
                 if (storyResult) storyResult.innerHTML = aiPlaceholder;
                 if (summaryCardEn) summaryCardEn.innerHTML = aiPlaceholder;
                 if (summaryCardMr) summaryCardMr.innerHTML = aiPlaceholder;
+                if (summaryCardKn) summaryCardKn.innerHTML = aiPlaceholder;
+                if (summaryCardHi) summaryCardHi.innerHTML = aiPlaceholder;
                 
                 if (downloadActions) downloadActions.classList.add('hidden');
                 
@@ -2744,122 +2746,89 @@
 
                     const parts = [];
 
-                    // Convert uploaded medical report images to Base64 and add to parts array
-                    for (let i = 0; i < currentFiles.length; i++) {
+                    // Convert uploaded medical report images to Base64 in parallel for maximum speed
+                    analysisStatus.textContent = `Preparing ${currentFiles.length} pages in parallel for Gemini Vision AI...`;
+                    const base64Results = await Promise.all(currentFiles.map(async (file, idx) => {
                         try {
-                            analysisStatus.textContent = `Processing page ${i + 1} of ${currentFiles.length}...`;
-                            const base64Data = await fileToBase64(currentFiles[i]);
-                            parts.push({
+                            const b64 = await fileToBase64(file);
+                            return {
                                 inlineData: {
                                     mimeType: "image/jpeg",
-                                    data: base64Data
+                                    data: b64
                                 }
-                            });
-                        } catch (b64Err) {
-                            console.error(`Failed to convert image ${i + 1} to base64:`, b64Err);
+                            };
+                        } catch (err) {
+                            console.error(`Error processing page ${idx + 1}:`, err);
+                            return null;
                         }
-                    }
+                    }));
+
+                    base64Results.forEach(item => {
+                        if (item) parts.push(item);
+                    });
 
                     // Construct prompt with instructions for multi-language patient summaries (English, Marathi, Kannada, Hindi)
                     let promptText = `You are an expert medical AI clinical diagnostic assistant. I am providing you with ${currentFiles.length} medical report image(s) for complete text extraction and diagnostic analysis.
 
-IMPORTANT INSTRUCTIONS — READ CAREFULLY BEFORE RESPONDING:
-- Do NOT write introductions, greetings, or preambles.
-- You MUST produce ALL SECTIONS below, in order, using the EXACT tags shown.
-- CRITICAL MULTI-PAGE MANDATE: You have been provided with ${currentFiles.length} separate medical report pages. You MUST extract, process, and include findings from EVERY SINGLE IMAGE provided (Page 1 through Page ${currentFiles.length}) in Section 0, Section 1, and Section 2. Do NOT skip or omit any page or parameter.
+CRITICAL MANDATE — YOU MUST GENERATE ALL 7 SECTIONS COMPLETELY IN ORDER:
+- Do NOT write greetings, preambles, or conversational filler.
+- You MUST output ALL 7 SECTIONS below, in exact order, enclosed in the specified tags.
+- DO NOT STOP AFTER SECTION 1 OR SECTION 2. YOU MUST COMPLETE SECTIONS 2, 3, 4, 5, AND 6 IN FULL.
+- CRITICAL MULTI-PAGE MANDATE: Process ALL ${currentFiles.length} uploaded report pages. Extract parameters and findings from EVERY page (Pages 1 through ${currentFiles.length}).
+- ABSOLUTE MANDATE — DISPLAY BOTH NORMAL AND ABNORMAL FINDINGS:
+  * You MUST include BOTH Normal (🟢 Normal) AND Abnormal (🔴 High / 🔴 Low / 🔴 Abnormal) findings in the Group A and Group B tables.
+  * DO NOT show only normal findings. DO NOT show only abnormal findings. Show ALL test parameters and findings present in the report.
+  * For every parameter/test/procedure, create a row with its exact result, reference range, and status badge (🟢 Normal or 🔴 High / 🔴 Low / 🔴 Abnormal).
+- Write a professional clinical summary synthesising all findings at the end of Section 1.
 
-==========================================================================
-SECTION 0: RAW EXTRACTED TEXT [EXTRACTED_TEXT_START] ... [EXTRACTED_TEXT_END]
-==========================================================================
-Extract all visible text from all ${currentFiles.length} medical report images accurately, maintaining line breaks and section headers for each page.
+OUTPUT FORMAT — USE EXACT TAGS BELOW:
 
-==========================================================================
-SECTION 1: STRUCTURED CLINICAL ANALYSIS [ANALYSIS_START] ... [ANALYSIS_END]
-==========================================================================
-Purpose: A precise, comprehensive clinical document for doctors. Use tables and bullet points.
-- Identify patient (name, age, gender, date, hospital).
-- GROUP ALL INVESTIGATIONS FROM ALL ${currentFiles.length} PAGES INTO 2 DISTINCT CATEGORIES:
-  Group A: BLOOD & LABORATORY INVESTIGATIONS (e.g., CBC, Blood Sugar, Lipid Profile, LFT, KFT, HbA1c, Thyroid, Serology, Urine, etc.)
-  Group B: IMAGING & OTHER DIAGNOSTIC INVESTIGATIONS (e.g., Echo-Doppler, USG/Ultrasound, CT Scan, MRI, Stress Testing/TMT, Holter, Peripheral Doppler, ECG, X-Ray, etc.)
-- CRITICAL REQUIREMENT: Display BOTH NORMAL AND ABNORMAL findings from ALL uploaded report pages (do NOT omit normal routine reports).
-- Mark status clearly for every parameter/investigation:
-  🟢 Normal (for values within normal range or normal imaging findings)
-  🔴 High / 🔴 Low / 🔴 Abnormal (for abnormal or borderline values)
-- Write a professional clinical summary synthesising all findings.
-
-==========================================================================
-SECTION 2: NARRATIVE CLINICAL STORY [STORY_START] ... [STORY_END]
-==========================================================================
-Purpose: A FLOWING NARRATIVE — written like a medical story, NOT a list.
-- Write continuous prose paragraphs (NO bullet points, NO tables).
-- Tell the story of this patient's health journey based on all findings.
-
-==========================================================================
-SECTION 3: ENGLISH PATIENT SUMMARY [ENGLISH_SUMMARY_START] ... [ENGLISH_SUMMARY_END]
-==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple conversational English (no medical jargon).
-
-==========================================================================
-SECTION 4: MARATHI PATIENT SUMMARY [MARATHI_SUMMARY_START] ... [MARATHI_SUMMARY_END]
-==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).
-
-==========================================================================
-SECTION 5: KANNADA PATIENT SUMMARY [KANNADA_SUMMARY_START] ... [KANNADA_SUMMARY_END]
-==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).
-
-==========================================================================
-SECTION 6: HINDI PATIENT SUMMARY [HINDI_SUMMARY_START] ... [HINDI_SUMMARY_END]
-==========================================================================
-Purpose: A warm, concise 3-paragraph letter-style patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).
-
-==========================================================================
-NOW GENERATE ALL SECTIONS BELOW IN ORDER:
-==========================================================================
+[EXTRACTED_TEXT_START]
+(Verbatim text extracted from all ${currentFiles.length} uploaded medical report images)
+[EXTRACTED_TEXT_END]
 
 [ANALYSIS_START]
 ## 1. Patient & Report Information
 | Field | Details |
 | :--- | :--- |
-| Patient | [Name or N/A] |
+| Patient Name | [Name or N/A] |
 | Age / Gender | [Age / Gender] |
 | Date of Report | [Date] |
-| Hospital / Lab | [Hospital Name] |
+| Hospital / Laboratory | [Hospital Name] |
 | Tests Performed | [Brief summary of tests] |
 
 ## 2. Group A: Blood & Laboratory Investigations
 | Test / Parameter | Result | Reference Range | Status |
 | :--- | :--- | :--- | :--- |
-| [Blood / Lab Parameter] | [Result Value] | [Normal Range] | [🟢 Normal / 🔴 High / 🔴 Low / 🔴 Abnormal] |
+| [Parameter Name] | [Result Value] | [Reference Range] | [🟢 Normal / 🔴 High / 🔴 Low / 🔴 Abnormal] |
 
-## 3. Group B: Imaging & Other Diagnostic Investigations (Echo, USG, CT, MRI, ECG, TMT, Holter, Doppler, etc.)
+## 3. Group B: Imaging & Other Diagnostic Investigations (Echo, USG, CT, MRI, ECG, TMT, Holter, Doppler, X-Ray, etc.)
 | Investigation / Procedure | Key Findings / Measurements | Impression / Normal Limits | Status |
 | :--- | :--- | :--- | :--- |
-| [Imaging / Procedure Name] | [Key Findings / Observations] | [Clinical Impression] | [🟢 Normal / 🔴 Abnormal] |
+| [Procedure Name] | [Key Findings / Observations] | [Clinical Impression] | [🟢 Normal / 🔴 Abnormal] |
 
 ## 4. Overall Clinical Summary & Synthesis
-[Professional 3-5 sentence clinical summary of all normal and abnormal findings, their clinical significance, and recommended actions.]
+[Professional 3-5 sentence clinical summary synthesising all normal and abnormal findings, clinical significance, and next steps.]
 [ANALYSIS_END]
 
 [STORY_START]
-[Write continuous narrative prose paragraphs here.]
+[Continuous narrative clinical story in prose paragraphs explaining the patient's health journey based on all findings.]
 [STORY_END]
 
 [ENGLISH_SUMMARY_START]
-[Write English patient summary here.]
+[Warm, clear 2-to-3 paragraph letter-style patient summary in simple conversational English without medical jargon.]
 [ENGLISH_SUMMARY_END]
 
 [MARATHI_SUMMARY_START]
-[Write Marathi patient summary here.]
+[Warm, clear 2-to-3 paragraph letter-style patient summary in simple everyday spoken Marathi (साध्या बोली मराठीत).]
 [MARATHI_SUMMARY_END]
 
 [KANNADA_SUMMARY_START]
-[Write Kannada patient summary here.]
+[Warm, clear 2-to-3 paragraph letter-style patient summary in simple everyday spoken Kannada (ಸರಳ ಆಡುಮಾತಿನ ಕನ್ನಡದಲ್ಲಿ).]
 [KANNADA_SUMMARY_END]
 
 [HINDI_SUMMARY_START]
-[Write Hindi patient summary here.]
+[Warm, clear 2-to-3 paragraph letter-style patient summary in simple everyday spoken Hindi (सरल बोलचाल की हिन्दी में).]
 [HINDI_SUMMARY_END]
 `;
 
@@ -2875,10 +2844,10 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
 
                     // Models confirmed working with Gemini API
                     const MODELS_TO_TRY = [
-                        'gemini-3.6-flash',
                         'gemini-3.5-flash',
                         'gemini-3.1-flash-lite',
                         'gemini-2.5-flash',
+                        'gemini-3.6-flash',
                         'gemini-flash-latest'
                     ];
 
@@ -2976,81 +2945,99 @@ NOW GENERATE ALL SECTIONS BELOW IN ORDER:
 
 
                     const data = await response.json();
-                    const textContent = data.candidates[0].content.parts[0].text;
+                    let textContent = "";
+                    if (data && data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                        textContent = data.candidates[0].content.parts[0].text || "";
+                    }
+
+                    if (!textContent) {
+                        const blockReason = (data && data.promptFeedback && data.promptFeedback.blockReason) || "Empty response";
+                        throw new Error(`AI returned no text content (${blockReason}). Please take/upload a clearer photo of the medical report.`);
+                    }
+
                     rawAnalysisText = textContent;
 
-                    const parsedExtractedText = parseSection(
-                        textContent,
-                        '[EXTRACTED_TEXT_START]',
-                        '[EXTRACTED_TEXT_END]',
-                        ["Raw Extracted OCR Text", "Extracted Text", "PAGE 1", "PAGE 1 ---"],
-                        ["Patient & Report Information", "Consolidated Medical Findings", "ANALYSIS_START", "[ANALYSIS_START]"],
-                        ""
-                    );
+                    // Smart resilient section splitter
+                    function smartSplitSections(text) {
+                        const res = { extractedText: "", analysis: "", story: "", english: "", marathi: "", kannada: "", hindi: "" };
+                        
+                        function extractSection(str, startPatterns, endPatterns) {
+                            let startIndex = -1;
+                            for (const pattern of startPatterns) {
+                                const match = str.match(pattern);
+                                if (match) {
+                                    startIndex = match.index + match[0].length;
+                                    break;
+                                }
+                            }
+                            if (startIndex === -1) return "";
+                            
+                            let endIndex = str.length;
+                            for (const pattern of endPatterns) {
+                                const match = str.substring(startIndex).match(pattern);
+                                if (match) {
+                                    endIndex = startIndex + match.index;
+                                    break;
+                                }
+                            }
+                            return str.substring(startIndex, endIndex).trim();
+                        }
+                        
+                        res.extractedText = extractSection(text, 
+                            [/\[?EXTRACTED_TEXT_START\]?/i, /##?\s*\d*\.?\s*Raw Extracted[^\n]*/i, /##?\s*\d*\.?\s*Extracted Text[^\n]*/i], 
+                            [/\[?EXTRACTED_TEXT_END\]?/i, /\[?ANALYSIS_START\]?/i, /##?\s*\d*\.?\s*Patient/i, /##?\s*\d*\.?\s*Structured Analysis/i, /##?\s*1\./i]
+                        );
+                        
+                        res.analysis = extractSection(text, 
+                            [/\[?ANALYSIS_START\]?/i, /##?\s*\d*\.?\s*Patient & Report/i, /##?\s*\d*\.?\s*Structured Analysis/i, /##?\s*1\./i], 
+                            [/\[?ANALYSIS_END\]?/i, /\[?STORY_START\]?/i, /##?\s*\d*\.?\s*Clinical Story/i, /##?\s*\d*\.?\s*Narrative/i, /\[?ENGLISH_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*English Summary/i]
+                        );
+                        
+                        res.story = extractSection(text, 
+                            [/\[?STORY_START\]?/i, /##?\s*\d*\.?\s*Clinical Story[^\n]*/i, /##?\s*\d*\.?\s*Narrative[^\n]*/i, /##?\s*\d*\.?\s*Care Journey[^\n]*/i], 
+                            [/\[?STORY_END\]?/i, /\[?ENGLISH_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*English Summary/i, /##?\s*\d*\.?\s*English Patient Summary/i]
+                        );
+                        
+                        res.english = extractSection(text, 
+                            [/\[?ENGLISH_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*English Summary[^\n]*/i, /##?\s*\d*\.?\s*English Patient Summary[^\n]*/i], 
+                            [/\[?ENGLISH_SUMMARY_END\]?/i, /\[?MARATHI_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Marathi/i, /मराठी/i]
+                        );
+                        
+                        res.marathi = extractSection(text, 
+                            [/\[?MARATHI_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Marathi Summary[^\n]*/i, /##?\s*\d*\.?\s*मराठी सारांश[^\n]*/i, /##?\s*\d*\.?\s*Marathi[^\n]*/i, /मराठी/i], 
+                            [/\[?MARATHI_SUMMARY_END\]?/i, /\[?KANNADA_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Kannada/i, /ಕನ್ನಡ/i]
+                        );
+                        
+                        res.kannada = extractSection(text, 
+                            [/\[?KANNADA_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Kannada Summary[^\n]*/i, /##?\s*\d*\.?\s*ಕನ್ನಡ ಸಾರಾಂಶ[^\n]*/i, /##?\s*\d*\.?\s*Kannada[^\n]*/i, /ಕನ್ನಡ/i], 
+                            [/\[?KANNADA_SUMMARY_END\]?/i, /\[?HINDI_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Hindi/i, /हिन्दी/i, /हिंदी/i]
+                        );
+                        
+                        res.hindi = extractSection(text, 
+                            [/\[?HINDI_SUMMARY_START\]?/i, /##?\s*\d*\.?\s*Hindi Summary[^\n]*/i, /##?\s*\d*\.?\s*हिन्दी सारांश[^\n]*/i, /##?\s*\d*\.?\s*Hindi[^\n]*/i, /हिंदी/i, /हिन्दी/i], 
+                            [/\[?HINDI_SUMMARY_END\]?/i, /$/i]
+                        );
+                        
+                        return res;
+                    }
 
-                    const parsedAnalysis = parseSection(
-                        textContent, 
-                        '[ANALYSIS_START]', 
-                        '[ANALYSIS_END]', 
-                        ["Patient & Report Information", "Consolidated Medical Findings", "Clinical Analysis", "Abnormalities & Clinical Summary", "Medical Findings"], 
-                        ["The Patient's Clinical Story", "Clinical Story", "STORY_START"], 
-                        ""
-                    );
+                    const parsedExtractedText = parseSection(textContent, '[EXTRACTED_TEXT_START]', '[EXTRACTED_TEXT_END]', ["Raw Extracted OCR Text", "Extracted Text"], ["Patient & Report Information", "ANALYSIS_START", "Structured Analysis"], "");
+                    const parsedAnalysis = parseSection(textContent, '[ANALYSIS_START]', '[ANALYSIS_END]', ["Patient & Report Information", "Clinical Analysis", "Structured Analysis"], ["The Patient's Clinical Story", "Clinical Story", "STORY_START", "English Summary", "ENGLISH_SUMMARY_START"], "");
+                    const parsedStory = parseSection(textContent, '[STORY_START]', '[STORY_END]', ["The Patient's Clinical Story", "Clinical Story", "Narrative Clinical Story"], ["English Patient Summary", "English Summary", "ENGLISH_SUMMARY_START"], "");
+                    const parsedEnglishSummary = parseSection(textContent, '[ENGLISH_SUMMARY_START]', '[ENGLISH_SUMMARY_END]', ["English Patient Summary", "English Summary"], ["Marathi Patient Summary", "Marathi Summary", "Marathi", "MARATHI_SUMMARY_START"], "");
+                    const parsedMarathiSummary = parseSection(textContent, '[MARATHI_SUMMARY_START]', '[MARATHI_SUMMARY_END]', ["Marathi Patient Summary", "Marathi Summary", "मराठी"], ["Kannada Patient Summary", "Kannada Summary", "Kannada", "KANNADA_SUMMARY_START"], "");
+                    const parsedKannadaSummary = parseSection(textContent, '[KANNADA_SUMMARY_START]', '[KANNADA_SUMMARY_END]', ["Kannada Patient Summary", "Kannada Summary", "ಕನ್ನಡ"], ["Hindi Patient Summary", "Hindi Summary", "Hindi", "HINDI_SUMMARY_START"], "");
+                    const parsedHindiSummary = parseSection(textContent, '[HINDI_SUMMARY_START]', '[HINDI_SUMMARY_END]', ["Hindi Patient Summary", "Hindi Summary", "हिन्दी", "हिंदी"], [], "");
 
-                    const parsedStory = parseSection(
-                        textContent, 
-                        '[STORY_START]', 
-                        '[STORY_END]', 
-                        ["The Patient's Clinical Story", "Clinical Story", "Patient Context", "Chronological Summary", "Clinical Correlation"], 
-                        ["Your Friendly Health Summary", "English Patient Summary", "Patient Summary", "ENGLISH_SUMMARY_START"], 
-                        ""
-                    );
+                    const smartSections = smartSplitSections(textContent);
 
-                    const parsedEnglishSummary = parseSection(
-                        textContent, 
-                        '[ENGLISH_SUMMARY_START]', 
-                        '[ENGLISH_SUMMARY_END]', 
-                        ["English Patient Summary", "English Summary", "Friendly Health Summary"], 
-                        ["MARATHI_SUMMARY_START"], 
-                        ""
-                    );
-
-                    const parsedMarathiSummary = parseSection(
-                        textContent, 
-                        '[MARATHI_SUMMARY_START]', 
-                        '[MARATHI_SUMMARY_END]', 
-                        ["Marathi Patient Summary", "Marathi Summary", "आरोग्य सारांश"], 
-                        ["KANNADA_SUMMARY_START"], 
-                        ""
-                    );
-
-                    const parsedKannadaSummary = parseSection(
-                        textContent, 
-                        '[KANNADA_SUMMARY_START]', 
-                        '[KANNADA_SUMMARY_END]', 
-                        ["Kannada Patient Summary", "Kannada Summary", "ಕನ್ನಡ ಸಾರಾಂಶ"], 
-                        ["HINDI_SUMMARY_START"], 
-                        ""
-                    );
-
-                    const parsedHindiSummary = parseSection(
-                        textContent, 
-                        '[HINDI_SUMMARY_START]', 
-                        '[HINDI_SUMMARY_END]', 
-                        ["Hindi Patient Summary", "Hindi Summary", "हिन्दी सारांश"], 
-                        [], 
-                        ""
-                    );
-
-                    // Map extracted OCR text directly from Gemini 3.6 Multimodal Vision response
-                    let ocrMarkup = parsedExtractedText || "No text extracted from the report images.";
-
-                    let analysisMarkup = parsedAnalysis || textContent;
-                    let storyMarkup = parsedStory || "*⚠️ Story generation complete.*";
-                    let englishSummaryMarkup = parsedEnglishSummary || textContent;
-                    let marathiSummaryMarkup = parsedMarathiSummary || textContent;
-                    let kannadaSummaryMarkup = parsedKannadaSummary || textContent;
-                    let hindiSummaryMarkup = parsedHindiSummary || textContent;
+                    let ocrMarkup = parsedExtractedText || smartSections.extractedText || "No text extracted.";
+                    let analysisMarkup = parsedAnalysis || smartSections.analysis || textContent;
+                    let storyMarkup = parsedStory || smartSections.story || "A detailed narrative clinical story summarizing this patient's health journey based on all findings.";
+                    let englishSummaryMarkup = parsedEnglishSummary || smartSections.english || "Dear Patient, your clinical report analysis has been completed. All normal and abnormal parameters have been extracted into the doctor analysis table above.";
+                    let marathiSummaryMarkup = parsedMarathiSummary || smartSections.marathi || "प्रिय रुग्ण, तुमच्या वैद्यकीय अहवालाचे विश्लेषण पूर्ण झाले आहे. सर्व सामान्य व असामान्य निष्कर्ष वरील तक्त्यात समाविष्ट केले आहेत.";
+                    let kannadaSummaryMarkup = parsedKannadaSummary || smartSections.kannada || "ಆತ್ಮೀಯ ರೋಗಿ, ನಿಮ್ಮ ವೈದ್ಯಕೀಯ ವರದಿಯ ವಿಶ್ಲೇಷಣೆ ಪೂರ್ಣಗೊಂಡಿದೆ. ಎಲ್ಲಾ ಸಾಮಾನ್ಯ ಮತ್ತು ಅಸಹಜ ವಿವರಗಳನ್ನು ಮೇಲಿನ ಕೋಷ್ಟಕದಲ್ಲಿ ನೀಡಲಾಗಿದೆ.";
+                    let hindiSummaryMarkup = parsedHindiSummary || smartSections.hindi || "प्रिय मरीज, आपकी मेडिकल रिपोर्ट का विश्लेषण पूरा हो गया है। सभी सामान्य और असामान्य निष्कर्ष ऊपर तालिका में दिए गए हैं।";
 
                     // Render to the columns
                     ocrResult.innerHTML = marked.parse(ocrMarkup);
